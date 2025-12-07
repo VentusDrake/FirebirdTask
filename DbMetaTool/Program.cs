@@ -134,7 +134,7 @@ namespace DbMetaTool
 
             BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "domains.sql"), "domains.sql", errors);
             BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "tables.sql"), "tables.sql", errors);
-            //BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "procedures.sql"), "procedures.sql", errors);
+            BuildingDBUtils.ExecuteProceduresScript(conn, Path.Combine(scriptsDirectory, "procedures.sql"), "procedures.sql", errors);
 
             Console.WriteLine();
             Console.WriteLine("===== Raport BuildDatabase =====");

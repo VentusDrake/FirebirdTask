@@ -75,5 +75,74 @@ namespace DbMetaTool {
 
             return result;
         }
+
+        public static void ExecuteProceduresScript(FbConnection conn, string path, string nameForLog, List<string> errors) {
+            if (!File.Exists(path)) {
+                Console.WriteLine($"[Build-db] Plik {nameForLog} nie istnieje – pomijam.");
+                return;
+            }
+
+            Console.WriteLine($"[Build-db] Wykonywanie {nameForLog} (procedury)...");
+
+            var text = File.ReadAllText(path, Encoding.UTF8);
+
+            var statements = new List<string>();
+            var sb = new StringBuilder();
+            bool inProc = false;
+
+            using (var reader = new StringReader(text)) {
+                string? line;
+                while ((line = reader.ReadLine()) != null) {
+                    var trimmed = line.TrimStart();
+
+                    // Nowy blok procedury
+                    if (trimmed.StartsWith("CREATE OR ALTER PROCEDURE", StringComparison.OrdinalIgnoreCase)) {
+                        // Jeśli jakiś blok już był – zapisujemy poprzedni
+                        if (inProc && sb.Length > 0) {
+                            var stmtPrev = sb.ToString().Trim();
+                            if (!string.IsNullOrWhiteSpace(stmtPrev))
+                                statements.Add(stmtPrev);
+                            sb.Clear();
+                        }
+
+                        inProc = true;
+                    }
+
+                    // Dopisujemy linie tylko wtedy, gdy jesteśmy wewnątrz procedury
+                    if (inProc) {
+                        sb.AppendLine(line);
+                    }
+                }
+
+                // Ostatni blok na końcu pliku
+                if (inProc && sb.Length > 0) {
+                    var stmtLast = sb.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(stmtLast))
+                        statements.Add(stmtLast);
+                }
+            }
+
+            using var tx = conn.BeginTransaction();
+
+            try {
+                foreach (var stmt in statements) {
+                    var trimmed = stmt.Trim();
+                    if (string.IsNullOrWhiteSpace(trimmed))
+                        continue;
+
+                    using var cmd = new FbCommand(trimmed, conn, tx);
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+                Console.WriteLine($"[Build-db] {nameForLog} – OK");
+            } catch (Exception ex) {
+                tx.Rollback();
+                var msg = $"{nameForLog}: {ex.Message}";
+                Console.WriteLine($"[Build-db] BŁĄD: {msg}");
+                errors.Add(msg);
+            }
+        }
+
     }
 }
