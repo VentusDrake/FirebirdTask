@@ -1,0 +1,40 @@
+﻿{
+  "Domains": [
+    "-- DOMAINS",
+    "CREATE DOMAIN D_DESC AS VARCHAR(255);",
+    "CREATE DOMAIN D_ID AS INTEGER NOT NULL;",
+    "CREATE DOMAIN D_LAST_NAME AS VARCHAR(100) NOT NULL;",
+    "CREATE DOMAIN D_NAME AS VARCHAR(100) NOT NULL;",
+    "CREATE DOMAIN D_PHONE_NUMBER AS VARCHAR(9) NOT NULL;"
+  ],
+  "Tables": [
+    "-- TABLES",
+    "",
+    "-- Table: CLIENTS",
+    "CREATE TABLE CLIENTS (",
+    "    ID D_ID NOT NULL,",
+    "    NAME D_NAME,",
+    "    LAST_NAME D_LAST_NAME,",
+    "    PHONE_NUMBER D_PHONE_NUMBER",
+    ");",
+    "",
+    "-- Table: PRODUCTS",
+    "CREATE TABLE PRODUCTS (",
+    "    ID D_ID NOT NULL,",
+    "    NAME D_NAME,",
+    "    DESCRIPTION D_DESC",
+    ");"
+  ],
+  "Procedures": [
+    "-- PROCEDURES",
+    "",
+    "-- Procedure: ADD_CLIENT",
+    "BEGIN\r\n    INSERT INTO CLIENTS (ID, NAME, LAST_NAME, PHONE_NUMBER)\r\n    VALUES (:P_ID, :P_NAME, :P_LAST_NAME, :P_PHONE_NUMBER);\r\nEND",
+    "",
+    "-- Procedure: ADD_PRODUCT",
+    "BEGIN\r\n    INSERT INTO PRODUCTS (ID, NAME, DESCRIPTION)\r\n    VALUES (:P_ID, :P_NAME, :P_DESC);\r\nEND",
+    "",
+    "-- Procedure: GET_PRODUCTS",
+    "BEGIN\r\n    FOR SELECT ID, NAME, DESCRIPTION\r\n        FROM PRODUCTS\r\n        INTO :R_ID, :R_NAME, :R_DESC\r\n    DO\r\n    BEGIN\r\n        SUSPEND;\r\n    END\r\nEND"
+  ]
+}

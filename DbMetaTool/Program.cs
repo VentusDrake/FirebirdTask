@@ -1,5 +1,8 @@
+using FirebirdSql.Data.FirebirdClient;
 using System;
 using System.IO;
+using System.Text;
+using System.Text.Json;
 
 namespace DbMetaTool
 {
@@ -98,19 +101,44 @@ namespace DbMetaTool
             // 1) Połącz się z bazą danych przy użyciu connectionString.
             // 2) Pobierz metadane domen, tabel (z kolumnami) i procedur.
             // 3) Wygeneruj pliki .sql / .json / .txt w outputDirectory.
-            throw new NotImplementedException();
+            if (!Directory.Exists(outputDirectory))
+                Directory.CreateDirectory(outputDirectory);
+
+            using var conn = new FbConnection(connectionString);
+            conn.Open();
+
+            var domains = MetaDataUtils.ExportDomains(conn);
+
+            var tables = MetaDataUtils.ExportTables(conn);
+
+            var procedures = MetaDataUtils.ExportProcedures(conn);
+
+            File.WriteAllLines(Path.Combine(outputDirectory, "domains.sql"), domains, Encoding.UTF8);
+            File.WriteAllLines(Path.Combine(outputDirectory, "tables.sql"), tables, Encoding.UTF8);
+            File.WriteAllLines(Path.Combine(outputDirectory, "procedures.sql"), procedures, Encoding.UTF8);
+
+            var jsonMeta = new {
+                Domains = domains,
+                Tables = tables,
+                Procedures = procedures
+            };
+
+            File.WriteAllText(
+                Path.Combine(outputDirectory, "metadata.json"),
+                JsonSerializer.Serialize(jsonMeta, new JsonSerializerOptions { WriteIndented = true }),
+                Encoding.UTF8
+            );
         }
 
         /// <summary>
         /// Aktualizuje istniejącą bazę danych Firebird 5.0 na podstawie skryptów.
         /// </summary>
-        public static void UpdateDatabase(string connectionString, string scriptsDirectory)
-        {
+        public static void UpdateDatabase(string connectionString, string scriptsDirectory) {
             // TODO:
             // 1) Połącz się z bazą danych przy użyciu connectionString.
             // 2) Wykonaj skrypty z katalogu scriptsDirectory (tylko obsługiwane elementy).
             // 3) Zadbaj o poprawną kolejność i bezpieczeństwo zmian.
             throw new NotImplementedException();
-        }
+        }        
     }
 }
