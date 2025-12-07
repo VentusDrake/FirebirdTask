@@ -29,12 +29,15 @@
     "-- PROCEDURES",
     "",
     "-- Procedure: ADD_CLIENT",
+    "CREATE OR ALTER PROCEDURE ADD_CLIENT (\r\n    P_PHONE_NUMBER D_PHONE_NUMBER,\r\n    P_LAST_NAME D_LAST_NAME,\r\n    P_NAME D_NAME,\r\n    P_ID D_ID\r\n)AS",
     "BEGIN\r\n    INSERT INTO CLIENTS (ID, NAME, LAST_NAME, PHONE_NUMBER)\r\n    VALUES (:P_ID, :P_NAME, :P_LAST_NAME, :P_PHONE_NUMBER);\r\nEND",
     "",
     "-- Procedure: ADD_PRODUCT",
+    "CREATE OR ALTER PROCEDURE ADD_PRODUCT (\r\n    P_DESC D_DESC,\r\n    P_NAME D_NAME,\r\n    P_ID D_ID\r\n)AS",
     "BEGIN\r\n    INSERT INTO PRODUCTS (ID, NAME, DESCRIPTION)\r\n    VALUES (:P_ID, :P_NAME, :P_DESC);\r\nEND",
     "",
     "-- Procedure: GET_PRODUCTS",
+    "CREATE OR ALTER PROCEDURE GET_PRODUCTS\r\nRETURNS (\r\n    R_DESC D_DESC,\r\n    R_NAME D_NAME,\r\n    R_ID D_ID\r\n)AS",
     "BEGIN\r\n    FOR SELECT ID, NAME, DESCRIPTION\r\n        FROM PRODUCTS\r\n        INTO :R_ID, :R_NAME, :R_DESC\r\n    DO\r\n    BEGIN\r\n        SUSPEND;\r\n    END\r\nEND"
   ]
 }

@@ -1,9 +1,5 @@
 ﻿using FirebirdSql.Data.FirebirdClient;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace DbMetaTool {
     public static class MetaDataUtils {
@@ -151,7 +147,7 @@ namespace DbMetaTool {
             var list = new List<string>();
             list.Add("-- PROCEDURES");
 
-            const string sql = @"
+            const string procSql = @"
                 SELECT
                     TRIM(RDB$PROCEDURE_NAME) AS NAME,
                     RDB$PROCEDURE_SOURCE AS SRC
@@ -160,17 +156,118 @@ namespace DbMetaTool {
                 ORDER BY RDB$PROCEDURE_NAME;
             ";
 
-            using var cmd = new FbCommand(sql, conn);
+            using var cmd = new FbCommand(procSql, conn);
             using var rdr = cmd.ExecuteReader();
 
             while (rdr.Read()) {
                 string name = rdr.GetString(rdr.GetOrdinal("NAME"));
                 string? src = rdr.IsDBNull(rdr.GetOrdinal("SRC"))
-                    ? null : rdr.GetString(rdr.GetOrdinal("SRC"));
+                    ? null
+                    : rdr.GetString(rdr.GetOrdinal("SRC"));
 
+                if (string.IsNullOrWhiteSpace(src)) {
+                    list.Add("");
+                    list.Add($"-- Procedure: {name}");
+                    list.Add("-- brak źródła procedury");
+                    continue;
+                }
+
+                // ---- pobierz parametry procedury ----
+                var inputs = new List<string>();
+                var outputs = new List<string>();
+
+                const string paramSql = @"
+                    SELECT
+                        TRIM(pp.RDB$PARAMETER_NAME)   AS PARAM_NAME,
+                        pp.RDB$PARAMETER_TYPE         AS PARAM_TYPE, -- 0 = IN, 1 = OUT
+                        pp.RDB$PARAMETER_NUMBER       AS PARAM_NO,
+                        TRIM(pp.RDB$FIELD_SOURCE)     AS FIELD_SOURCE,
+                        f.RDB$FIELD_TYPE,
+                        f.RDB$FIELD_SUB_TYPE,
+                        f.RDB$FIELD_LENGTH,
+                        f.RDB$CHARACTER_LENGTH,
+                        f.RDB$FIELD_PRECISION,
+                        f.RDB$FIELD_SCALE,
+                        COALESCE(f.RDB$SYSTEM_FLAG, 0) AS SYS_FLAG
+                    FROM RDB$PROCEDURE_PARAMETERS pp
+                    JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = pp.RDB$FIELD_SOURCE
+                    WHERE pp.RDB$PROCEDURE_NAME = @procName
+                    ORDER BY pp.RDB$PARAMETER_TYPE, pp.RDB$PARAMETER_NUMBER;
+                ";
+
+                using (var pCmd = new FbCommand(paramSql, conn)) {
+                    pCmd.Parameters.AddWithValue("@procName", name);
+
+                    using var pRdr = pCmd.ExecuteReader();
+                    while (pRdr.Read()) {
+                        string pName = pRdr.GetString(pRdr.GetOrdinal("PARAM_NAME"));
+                        short pType = pRdr.GetInt16(pRdr.GetOrdinal("PARAM_TYPE"));
+                        string fieldSource = pRdr.GetString(pRdr.GetOrdinal("FIELD_SOURCE"));
+                        short sysFlag = pRdr.GetInt16(pRdr.GetOrdinal("SYS_FLAG"));
+
+                        string typeSql;
+
+                        if (sysFlag == 0) {
+                            // użyj nazwy domeny (FIELD_SOURCE = nazwa domeny)
+                            typeSql = fieldSource;
+                        } else {
+                            // policz typ bazowy
+                            short fType = pRdr.GetInt16(pRdr.GetOrdinal("RDB$FIELD_TYPE"));
+                            short fSub = pRdr.IsDBNull(pRdr.GetOrdinal("RDB$FIELD_SUB_TYPE"))
+                                ? (short)0 : pRdr.GetInt16(pRdr.GetOrdinal("RDB$FIELD_SUB_TYPE"));
+                            int fLen = pRdr.IsDBNull(pRdr.GetOrdinal("RDB$FIELD_LENGTH"))
+                                ? 0 : pRdr.GetInt32(pRdr.GetOrdinal("RDB$FIELD_LENGTH"));
+                            int fChar = pRdr.IsDBNull(pRdr.GetOrdinal("RDB$CHARACTER_LENGTH"))
+                                ? 0 : pRdr.GetInt32(pRdr.GetOrdinal("RDB$CHARACTER_LENGTH"));
+                            short prec = pRdr.IsDBNull(pRdr.GetOrdinal("RDB$FIELD_PRECISION"))
+                                ? (short)0 : pRdr.GetInt16(pRdr.GetOrdinal("RDB$FIELD_PRECISION"));
+                            short scale = pRdr.IsDBNull(pRdr.GetOrdinal("RDB$FIELD_SCALE"))
+                                ? (short)0 : pRdr.GetInt16(pRdr.GetOrdinal("RDB$FIELD_SCALE"));
+
+                            typeSql = MapType(fType, fSub, fLen, fChar, prec, scale);
+                        }
+
+                        string def = $"{pName} {typeSql}";
+
+                        if (pType == 0)
+                            inputs.Add(def);   // IN
+                        else
+                            outputs.Add(def);  // OUT (RETURNS)
+                    }
+                }
+
+                // ---- składamy nagłówek CREATE OR ALTER PROCEDURE ----
                 list.Add("");
                 list.Add($"-- Procedure: {name}");
-                list.Add(src ?? "-- brak źródła");
+
+                var sb = new StringBuilder();
+
+                sb.Append($"CREATE OR ALTER PROCEDURE {name}");
+
+                if (inputs.Count > 0) {
+                    sb.AppendLine(" (");
+                    for (int i = 0; i < inputs.Count; i++) {
+                        string comma = i < inputs.Count - 1 ? "," : "";
+                        sb.Append("    ").Append(inputs[i]).AppendLine(comma);
+                    }
+                    sb.Append(")");
+                } else {
+                    sb.AppendLine();
+                }
+
+                if (outputs.Count > 0) {
+                    sb.AppendLine("RETURNS (");
+                    for (int i = 0; i < outputs.Count; i++) {
+                        string comma = i < outputs.Count - 1 ? "," : "";
+                        sb.Append("    ").Append(outputs[i]).AppendLine(comma);
+                    }
+                    sb.Append(")");
+                }
+
+                sb.AppendLine("AS");
+
+                list.Add(sb.ToString().TrimEnd());
+                list.Add(src.Trim());  
             }
 
             return list;
