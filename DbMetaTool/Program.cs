@@ -196,7 +196,56 @@ namespace DbMetaTool
             // 1) Połącz się z bazą danych przy użyciu connectionString.
             // 2) Wykonaj skrypty z katalogu scriptsDirectory (tylko obsługiwane elementy).
             // 3) Zadbaj o poprawną kolejność i bezpieczeństwo zmian.
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new ArgumentException("Brak connectionString.", nameof(connectionString));
+
+            if (string.IsNullOrWhiteSpace(scriptsDirectory))
+                throw new ArgumentException("Brak ścieżki katalogu skryptów.", nameof(scriptsDirectory));
+
+            if (!Directory.Exists(scriptsDirectory))
+                throw new DirectoryNotFoundException($"Katalog skryptów nie istnieje: {scriptsDirectory}");
+
+            Console.WriteLine("[Update-db] Aktualizacja bazy danych przy użyciu skryptów z: " + scriptsDirectory);
+
+            using var conn = new FbConnection(connectionString);
+            conn.Open();
+
+            var errors = new List<string>();
+
+            // 1) Domeny
+            BuildingDBUtils.ExecuteScriptIfExists(
+                conn,
+                Path.Combine(scriptsDirectory, "domains.sql"),
+                "domains.sql",
+                errors);
+
+            // 2) Tabele
+            BuildingDBUtils.ExecuteScriptIfExists(
+                conn,
+                Path.Combine(scriptsDirectory, "tables.sql"),
+                "tables.sql",
+                errors);
+
+            // 3) Procedury
+            BuildingDBUtils.ExecuteProceduresScript(
+                conn,
+                Path.Combine(scriptsDirectory, "procedures.sql"),
+                "procedures.sql",
+                errors);
+
+            // Raport
+            Console.WriteLine();
+            Console.WriteLine("===== Raport UpdateDatabase =====");
+            Console.WriteLine($"Connection string: {connectionString}");
+            Console.WriteLine($"Katalog skryptów: {scriptsDirectory}");
+
+            if (errors.Count == 0) {
+                Console.WriteLine("Wszystkie skrypty wykonane pomyślnie.");
+            } else {
+                Console.WriteLine("Wystąpiły błędy podczas wykonywania skryptów:");
+                foreach (var e in errors)
+                    Console.WriteLine(" - " + e);
+            }
         }        
     }
 }
