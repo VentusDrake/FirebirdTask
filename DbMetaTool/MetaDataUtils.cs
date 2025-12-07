@@ -119,16 +119,13 @@ namespace DbMetaTool {
                 string fieldSource = rdr.GetString(rdr.GetOrdinal("FIELD_SOURCE")); // <-- domena lub pole systemowe
                 bool nn = !rdr.IsDBNull(rdr.GetOrdinal("RDB$NULL_FLAG"));
 
-                // Czy pole jest domeną?
                 bool isDomain = rdr.GetInt16(rdr.GetOrdinal("SYS_FLAG")) == 0;
 
                 string sqlType;
 
                 if (isDomain) {
-                    // Użyj nazwy domeny
                     sqlType = fieldSource;
                 } else {
-                    // Licz typ bazowy
                     short fieldType = rdr.GetInt16(rdr.GetOrdinal("RDB$FIELD_TYPE"));
                     short subType = rdr.IsDBNull(rdr.GetOrdinal("RDB$FIELD_SUB_TYPE"))
                         ? (short)0 : rdr.GetInt16(rdr.GetOrdinal("RDB$FIELD_SUB_TYPE"));

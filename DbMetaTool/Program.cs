@@ -89,7 +89,65 @@ namespace DbMetaTool
             // 2) Wczytaj i wykonaj kolejno skrypty z katalogu scriptsDirectory
             //    (tylko domeny, tabele, procedury).
             // 3) Obsłuż błędy i wyświetl raport.
-            throw new NotImplementedException();
+
+            if (string.IsNullOrWhiteSpace(databaseDirectory))
+                throw new ArgumentException("Brak ścieżki katalogu bazy danych.", nameof(databaseDirectory));
+
+            if (string.IsNullOrWhiteSpace(scriptsDirectory))
+                throw new ArgumentException("Brak ścieżki katalogu skryptów.", nameof(scriptsDirectory));
+
+            if (!Directory.Exists(scriptsDirectory))
+                throw new DirectoryNotFoundException($"Katalog skryptów nie istnieje: {scriptsDirectory}");
+
+            var dbPath = Path.Combine(databaseDirectory, "FBTASKGENERATED.fdb");
+            if (File.Exists(dbPath))
+                throw new InvalidOperationException($"Plik bazy już istnieje: {dbPath}");
+
+            var json = File.ReadAllText("config.json");
+            using var doc = JsonDocument.Parse(json);
+
+            string ConfigUser = doc.RootElement.GetProperty("SYSDBA_USER").GetString();
+            string ConfigPassword = doc.RootElement.GetProperty("SYSDBA_PASSWORD").GetString();
+
+            Console.WriteLine($"[Build-db] Tworzenie bazy danych: {dbPath}");
+
+            var csb = new FbConnectionStringBuilder {
+                Database = dbPath,
+                UserID = ConfigUser,
+                Password = ConfigPassword,
+                DataSource = "localhost",
+                Charset = "UTF8",
+                ServerType = FbServerType.Default
+            };
+            csb["WireCrypt"] = "Enabled";
+
+            var connectionString = csb.ToString();
+
+            FbConnection.CreateDatabase(connectionString);
+
+            Console.WriteLine("[Build-db] Baza utworzona pomyślnie.");
+
+            using var conn = new FbConnection(connectionString);
+            conn.Open();
+
+            var errors = new List<string>();
+
+            BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "domains.sql"), "domains.sql", errors);
+            BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "tables.sql"), "tables.sql", errors);
+            //BuildingDBUtils.ExecuteScriptIfExists(conn, Path.Combine(scriptsDirectory, "procedures.sql"), "procedures.sql", errors);
+
+            Console.WriteLine();
+            Console.WriteLine("===== Raport BuildDatabase =====");
+            Console.WriteLine($"Ścieżka bazy: {dbPath}");
+            Console.WriteLine($"Katalog skryptów: {scriptsDirectory}");
+
+            if (errors.Count == 0) {
+                Console.WriteLine("Wszystkie skrypty wykonane pomyślnie.");
+            } else {
+                Console.WriteLine("Wystąpiły błędy podczas wykonywania skryptów:");
+                foreach (var e in errors)
+                    Console.WriteLine(" - " + e);
+            }
         }
 
         /// <summary>
